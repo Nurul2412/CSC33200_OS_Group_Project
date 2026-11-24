@@ -25,10 +25,9 @@ static void handle_sigint(int sig)
 /* Quick help message so you know what options you can use. */
 static void usage(char *prog)
 {
-    printf("Usage: %s [-k keyword] [-t] [-v] [-h] <logfile>\n", prog);
+    printf("Usage: %s [-k keyword] [-t] [-h] <logfile>\n", prog);
     printf("  -k keyword  count lines containing keyword\n");
     printf("  -t          count log levels (ERROR, WARN, INFO, DEBUG)\n");
-    printf("  -v          verbose (show file size)\n");
     printf("  -h          show this help\n");
 }
 
@@ -55,7 +54,7 @@ static int line_contains(char *start, long len, char *word)
 int loganalyzer_main(int argc, char *argv[])
 {
     char *keyword = NULL;
-    int show_levels = 0, verbose = 0, opt;
+    int show_levels = 0, opt;
 
     /* The shell might run this command more than once, so start fresh:
        optind = 1 makes getopt start reading options from the beginning
@@ -65,16 +64,15 @@ int loganalyzer_main(int argc, char *argv[])
 
     /*
      * First, figure out which options were typed in.
-     * getopt hands us one option at a time. "k:tvh" is the list of options
+     * getopt hands us one option at a time. "k:th" is the list of options
      * we accept, and the colon after k means -k needs a word after it
      * (getopt drops that word into optarg for us). Anything we don't
      * recognize just shows the help and quits.
      */
-    while ((opt = getopt(argc, argv, "k:tvh")) != -1) {
+    while ((opt = getopt(argc, argv, "k:th")) != -1) {
         switch (opt) {
         case 'k': keyword = optarg; break;
         case 't': show_levels = 1; break;
-        case 'v': verbose = 1; break;
         case 'h': usage(argv[0]); return 0;
         default:  usage(argv[0]); return 1;
         }
@@ -137,8 +135,7 @@ int loganalyzer_main(int argc, char *argv[])
     /* Now walk through the file line by line and count stuff. */
     char *levels[] = { "ERROR", "WARN", "INFO", "DEBUG" };
     long level_count[4] = { 0, 0, 0, 0 };
-    long lines = 0, words = 0, keyword_hits = 0, empty_lines = 0;
-    long longest = 0;
+    long lines = 0, words = 0, keyword_hits = 0;
 
     /* Hook up our Ctrl+C handler right before the long part, so we can
        stop nicely in the middle of a big file. */
@@ -155,8 +152,6 @@ int loganalyzer_main(int argc, char *argv[])
             len++;
 
         lines++;
-        if (len == 0) empty_lines++;
-        if (len > longest) longest = len;
 
         /* Counting words: every time we go from a space into a letter,
            that's the start of a new word. */
@@ -190,9 +185,7 @@ int loganalyzer_main(int argc, char *argv[])
 
     printf("===== loganalyzer report: %s =====\n", path);
     printf("Total lines      : %ld\n", lines);
-    printf("Empty lines      : %ld\n", empty_lines);
     printf("Total words      : %ld\n", words);
-    printf("Longest line     : %ld chars\n", longest);
     if (keyword)
         printf("Lines with \"%s\" : %ld\n", keyword, keyword_hits);
     if (show_levels) {
@@ -200,9 +193,6 @@ int loganalyzer_main(int argc, char *argv[])
         for (int l = 0; l < 4; l++)
             printf("  %-6s : %ld\n", levels[l], level_count[l]);
     }
-    if (verbose)
-        printf("File size        : %ld bytes\n", size);
-
     /* Clean up by unmapping the file. We return 130 if Ctrl+C stopped us,
        since that's the usual exit code for that, otherwise 0. */
     munmap(data, size);
