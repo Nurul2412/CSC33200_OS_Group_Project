@@ -1,0 +1,109 @@
+.TH FILECRYPT 1 "November 2026" "Custom Shell" "Custom Shell Commands"
+.SH NAME
+filecrypt \- encrypt or decrypt a file with a key
+.SH SYNOPSIS
+.B filecrypt
+.RB ( \-e | \-d )
+.RB [ \-k
+.IR key ]
+.RB [ \-o
+.IR output ]
+.RB [ \-v ]
+.RB [ \-h ]
+.I file
+.SH DESCRIPTION
+.B filecrypt
+encrypts or decrypts
+.I file
+using a key chosen by the user.
+The key is hashed into a seed for a pseudo random keystream, and every byte
+of the file is XORed with the next keystream byte.
+Running the same key over the encrypted file restores the original.
+.PP
+Both files are accessed with
+.BR mmap (2).
+The key is kept in memory locked with
+.BR mlock (2)
+so it is never written to swap, and it is wiped with
+.BR explicit_bzero (3)
+before the command exits.
+When the key is typed at the prompt, terminal echo is turned off.
+.PP
+Encrypted files start with a 12 byte header: the text
+.B FCR1
+followed by an 8 byte check value derived from the key.
+This lets
+.B filecrypt
+reject a wrong key or a file it did not create before writing any output.
+.SH OPTIONS
+.TP
+.B \-e
+Encrypt
+.IR file .
+.TP
+.B \-d
+Decrypt
+.IR file .
+.TP
+.BI \-k " key"
+Use
+.I key
+as the key (up to 255 characters).
+If left out, the key is read from standard input, with echo turned off when
+standard input is a terminal.
+Keys given with
+.B \-k
+can be seen by other users in the process list, so the prompt is safer.
+.TP
+.BI \-o " output"
+Write the result to
+.IR output .
+By default, encrypting adds
+.B .enc
+to the file name, and decrypting removes it (or adds
+.B .dec
+if the name does not end in
+.BR .enc ).
+The output file is created with mode 0600.
+.TP
+.B \-v
+Verbose. Show input and output sizes, time taken, speed, and whether the key
+memory was locked.
+.TP
+.B \-h
+Show a short help message.
+.SH SIGNALS
+Pressing Ctrl+C (SIGINT) stops the command, deletes the partial output file,
+wipes the key, and exits with status 130.
+The shell's original SIGINT handler is restored afterward.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Bad options, a file error, a wrong key, or an input that is not a filecrypt
+file.
+.TP
+.B 130
+Interrupted by Ctrl+C.
+.SH EXAMPLES
+.TP
+Encrypt a file, typing the key at the prompt:
+.B filecrypt \-e notes.txt
+.TP
+Decrypt it back to notes.txt:
+.B filecrypt \-d notes.txt.enc
+.TP
+Encrypt with a key on the command line and show timing:
+.B filecrypt \-e \-v \-k secret \-o backup.enc photo.jpg
+.SH NOTES
+This is a teaching cipher for a course project.
+It is not a replacement for real encryption such as AES.
+.SH SEE ALSO
+.BR mmap (2),
+.BR mlock (2),
+.BR ftruncate (2),
+.BR msync (2),
+.BR termios (3),
+.BR sigaction (2)
