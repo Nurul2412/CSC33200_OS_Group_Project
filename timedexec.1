@@ -1,0 +1,154 @@
+.TH TIMEDEXEC 1 "November 2026" "Custom Shell" "User Commands"
+.SH NAME
+timedexec \- run a program and terminate it if it exceeds CPU, memory, or wall-clock limits
+.SH SYNOPSIS
+.B timedexec
+[\fB\-c\fR \fISECONDS\fR]
+[\fB\-m\fR \fIMEGABYTES\fR]
+[\fB\-t\fR \fISECONDS\fR]
+[\fB\-q\fR]
+[\fB\-v\fR]
+.I COMMAND
+[\fIARGS\fR...]
+.br
+.B timedexec \-h
+.SH DESCRIPTION
+.B timedexec
+forks and executes
+.I COMMAND
+with the given arguments, then monitors it until it exits. If the process
+exceeds a configured limit, it is sent
+.B SIGKILL
+and
+.B timedexec
+exits with status 124.
+.PP
+The child's CPU time and resident set size are sampled from
+.I /proc/PID/stat
+and
+.I /proc/PID/statm
+every 10 milliseconds. As a backstop,
+.BR setrlimit (2)
+is applied in the child before
+.BR execvp (3):
+.B RLIMIT_CPU
+(limit rounded up, hard limit one second higher) and
+.B RLIMIT_DATA
+(twice the memory limit). Resource usage of the finished child is collected
+with
+.BR wait4 (2)
+and printed as a summary.
+.PP
+At least one of
+.BR \-c ,
+.BR \-m ,
+or
+.B \-t
+is required. Option parsing stops at the first non-option argument, so options
+of
+.I COMMAND
+are passed through untouched.
+.SH OPTIONS
+.TP
+.BI \-c " SECONDS"
+Maximum CPU time (user plus system). Fractions are allowed.
+.TP
+.BI \-m " MEGABYTES"
+Maximum resident memory. Fractions are allowed.
+.TP
+.BI \-t " SECONDS"
+Maximum wall-clock time. Fractions are allowed.
+.TP
+.B \-q
+Quiet. Suppress the status and resource summary printed to standard error.
+.TP
+.B \-v
+Verbose. Print the child PID and configured limits before running.
+.TP
+.B \-h
+Print usage and exit with status 0.
+.SH SIGNALS
+.BR SIGINT ,
+.BR SIGTERM ,
+.BR SIGHUP ,
+and
+.B SIGQUIT
+received by
+.B timedexec
+are forwarded to the child. The exit status then reflects how the child
+terminated.
+.SH EXIT STATUS
+.TP
+.B 0..123
+The exit status of
+.IR COMMAND .
+.TP
+.B 124
+A CPU, memory, or wall-clock limit was exceeded and the command was killed.
+.TP
+.B 125
+.B timedexec
+itself failed (bad arguments, missing limit, fork or setrlimit failure).
+.TP
+.B 126
+.I COMMAND
+was found but could not be executed.
+.TP
+.B 127
+.I COMMAND
+was not found.
+.TP
+.B 128+N
+.I COMMAND
+was terminated by signal N.
+.SH EXAMPLES
+Kill a busy loop after 2 seconds of CPU time:
+.PP
+.RS
+.nf
+timedexec \-c 2 ./cpu_hog
+.fi
+.RE
+.PP
+Limit a program to 50 MB of resident memory:
+.PP
+.RS
+.nf
+timedexec \-m 50 ./mem_hog
+.fi
+.RE
+.PP
+Combine all three limits and show details:
+.PP
+.RS
+.nf
+timedexec \-v \-c 5 \-m 256 \-t 30 python3 script.py
+.fi
+.RE
+.PP
+Use the exit status in a script:
+.PP
+.RS
+.nf
+timedexec \-q \-t 10 ./job; [ $? \-eq 124 ] && echo "timed out"
+.fi
+.RE
+.SH FILES
+.TP
+.I /proc/PID/stat
+Source of CPU time (utime + stime).
+.TP
+.I /proc/PID/statm
+Source of resident memory.
+.SH NOTES
+CPU and memory limits are enforced by polling, so a process can overshoot a
+limit by up to one polling interval before it is killed. Descendant processes
+of
+.I COMMAND
+are not tracked.
+.SH SEE ALSO
+.BR setrlimit (2),
+.BR wait4 (2),
+.BR getopt (3),
+.BR proc (5),
+.BR timeout (1)
