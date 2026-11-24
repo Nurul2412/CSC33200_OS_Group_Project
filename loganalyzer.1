@@ -3,13 +3,13 @@
 loganalyzer \- count lines, words and log levels in a log file using mmap()
 .SH SYNOPSIS
 .B loganalyzer
-[\fB\-k\fR \fIkeyword\fR] [\fB\-t\fR] [\fB\-v\fR] [\fB\-h\fR] \fIlogfile\fR
+[\fB\-k\fR \fIkeyword\fR] [\fB\-t\fR] [\fB\-h\fR] \fIlogfile\fR
 .SH DESCRIPTION
 .B loganalyzer
 maps the whole log file into memory with
 .BR mmap (2)
-and scans it once, line by line. It reports the total lines, empty
-lines, words and the length of the longest line.
+and scans it once, line by line. It reports the total number of lines
+and words.
 .PP
 The command is part of the Custom Shell. Its entry point is
 .BR loganalyzer_main(argc,\ argv) ,
@@ -27,16 +27,12 @@ Count the lines that contain \fIkeyword\fR (case-sensitive).
 Count lines by log level: ERROR, WARN, INFO, DEBUG. Only the first
 level found in a line is counted.
 .TP
-.B \-v
-Also print the file size in bytes.
-.TP
 .B \-h
 Print help and exit.
 .SH SIGNALS
 Pressing Ctrl+C (SIGINT) during a scan stops it and prints
 .B [Interrupted by Ctrl+C - partial results]
-followed by the counts so far. Ctrl+C goes back to its normal behavior
-when the command finishes.
+followed by the counts so far.
 .SH EXIT STATUS
 .TP
 .B 0
@@ -48,20 +44,11 @@ could not be opened.
 .TP
 .B 130
 Stopped by Ctrl+C.
-.SH BUILDING FOR TESTING
-loganalyzer.c has no main() of its own. To test it alone, use a
-throwaway main:
-.PP
-.nf
-.RS
-echo 'int loganalyzer_main(int, char **); int main(int c, char **v) { return loganalyzer_main(c, v); }' > main.c
-gcc \-Wall \-o loganalyzer loganalyzer.c main.c
-.RE
-.fi
 .SH TEST FILES
+Make these in the terminal before starting the Custom Shell.
 .TP
 .B sample.log
-12 lines (line 6 is empty), 551 bytes, each line ending in a newline:
+12 lines (line 6 is empty):
 .PP
 .nf
 .RS
@@ -82,36 +69,23 @@ gcc \-Wall \-o loganalyzer loganalyzer.c main.c
 .TP
 .B empty.log
 An empty file, made with: \fBtouch empty.log\fR
-.TP
-.B big.log
-1,000,000 lines (about 34 MB), made with:
-.PP
-.nf
-.RS
-seq 1 1000000 | sed 's/.*/2026-11-01 INFO request & ok/' > big.log
-.RE
-.fi
 .SH TESTS AND EXPECTED OUTPUT
-.SS 1. Basic stats (exit 0)
+.SS 1. Basic stats
 .nf
 .RS
 $ loganalyzer sample.log
 ===== loganalyzer report: sample.log =====
 Total lines      : 12
-Empty lines      : 1
 Total words      : 75
-Longest line     : 59 chars
 .RE
 .fi
-.SS 2. Log levels (exit 0)
+.SS 2. Log levels
 .nf
 .RS
 $ loganalyzer \-t sample.log
 ===== loganalyzer report: sample.log =====
 Total lines      : 12
-Empty lines      : 1
 Total words      : 75
-Longest line     : 59 chars
 \-\-\- Log levels \-\-\-
   ERROR  : 2
   WARN   : 2
@@ -119,48 +93,42 @@ Longest line     : 59 chars
   DEBUG  : 2
 .RE
 .fi
-.SS 3. Keyword (exit 0)
+.SS 3. Keyword
 .nf
 .RS
 $ loganalyzer \-k timeout sample.log
 ===== loganalyzer report: sample.log =====
 Total lines      : 12
-Empty lines      : 1
 Total words      : 75
-Longest line     : 59 chars
 Lines with "timeout" : 2
 .RE
 .fi
-.SS 4. All options together (exit 0)
+.SS 4. Both options
 .nf
 .RS
-$ loganalyzer \-t \-k alice \-v sample.log
+$ loganalyzer \-t \-k alice sample.log
 ===== loganalyzer report: sample.log =====
 Total lines      : 12
-Empty lines      : 1
 Total words      : 75
-Longest line     : 59 chars
 Lines with "alice" : 2
 \-\-\- Log levels \-\-\-
   ERROR  : 2
   WARN   : 2
   INFO   : 5
   DEBUG  : 2
-File size        : 551 bytes
 .RE
 .fi
-.SS 5. Help (exit 0)
+.SS 5. Help
 .nf
 .RS
 $ loganalyzer \-h
-Usage: loganalyzer [\-k keyword] [\-t] [\-v] [\-h] <logfile>
+Usage: loganalyzer [\-k keyword] [\-t] [\-h] <logfile>
   \-k keyword  count lines containing keyword
   \-t          count log levels (ERROR, WARN, INFO, DEBUG)
-  \-v          verbose (show file size)
   \-h          show this help
 .RE
 .fi
-.SS 6. Empty file (exit 0)
+.SS 6. Empty file
 .nf
 .RS
 $ loganalyzer empty.log
@@ -174,15 +142,7 @@ $ loganalyzer missing.log
 Error opening log file: No such file or directory
 .RE
 .fi
-.SS 8. No file given (exit 1)
-.nf
-.RS
-$ loganalyzer
-Error: no log file given
-.RE
-.fi
-Then prints the help text from test 5.
-.SS 9. Bad option (exit 1)
+.SS 8. Bad option (exit 1)
 .nf
 .RS
 $ loganalyzer \-z sample.log
@@ -190,38 +150,16 @@ loganalyzer: invalid option \-\- 'z'
 .RE
 .fi
 Then prints the help text.
-.SS 10. \-k without a word (exit 1)
+.SS 9. No file given (exit 1)
 .nf
 .RS
-$ loganalyzer \-k
-loganalyzer: option requires an argument \-\- 'k'
+$ loganalyzer
+Error: no log file given
 .RE
 .fi
 Then prints the help text.
-.SS 11. Big file, mmap speed test (exit 0)
-.nf
-.RS
-$ loganalyzer \-t \-v big.log
-===== loganalyzer report: big.log =====
-Total lines      : 1000000
-Empty lines      : 0
-Total words      : 5000000
-Longest line     : 34 chars
-\-\-\- Log levels \-\-\-
-  ERROR  : 0
-  WARN   : 0
-  INFO   : 1000000
-  DEBUG  : 0
-File size        : 33888896 bytes
-.RE
-.fi
-.SS 12. Ctrl+C (exit 130)
-Run test 11 and press Ctrl+C during the scan. The scan is fast, so a
-bigger file may be needed to catch it. The command prints the partial
-results described under SIGNALS.
 .SH SEE ALSO
 .BR mmap (2),
-.BR munmap (2),
 .BR open (2),
 .BR fstat (2),
 .BR getopt (3),
