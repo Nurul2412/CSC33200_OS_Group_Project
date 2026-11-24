@@ -442,11 +442,3 @@ int filecrypt_main(int argc, char *argv[])
     return 0;
 }
 
-/* Lets you build and test filecrypt by itself:
-   gcc -Wall -DFILECRYPT_STANDALONE -o filecrypt filecrypt.c */
-#ifdef FILECRYPT_STANDALONE
-int main(int argc, char *argv[])
-{
-    return filecrypt_main(argc, argv);
-}
-#endif
