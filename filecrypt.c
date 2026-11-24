@@ -96,11 +96,14 @@ static uint64_t crypt_next(uint64_t *state)
  * We turn off echo on the terminal so nothing appears while you type, then
  * read one letter at a time with read(). We don't use fgets() because it
  * would leave a copy of the key in its own buffer that we can't wipe.
+ * Ctrl+C is caught here too, so echo always gets turned back on. We use
+ * sigaction without SA_RESTART so that Ctrl+C makes read() stop waiting.
  * Gives back the key length, or -1 if something went wrong.
  */
 static int crypt_read_key(void)
 {
     struct termios old_term, quiet;
+    struct sigaction action, old_action;
     int is_tty = isatty(STDIN_FILENO);
     int len = 0;
     char c;
@@ -111,15 +114,27 @@ static int crypt_read_key(void)
             perror("tcgetattr");
             return -1;
         }
+    }
+
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = crypt_handle_sigint;
+    sigemptyset(&action.sa_mask);
+    if (sigaction(SIGINT, &action, &old_action) == -1) {
+        perror("sigaction");
+        return -1;
+    }
+
+    if (is_tty) {
         quiet = old_term;
         quiet.c_lflag &= ~ECHO;
         if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &quiet) == -1) {
             perror("tcsetattr");
+            sigaction(SIGINT, &old_action, NULL);
             return -1;
         }
     }
 
-    while (len < KEY_MAX - 1) {
+    while (len < KEY_MAX - 1 && !crypt_stop_requested) {
         ssize_t n = read(STDIN_FILENO, &c, 1);
         if (n == -1 && errno == EINTR)
             continue;
@@ -135,6 +150,9 @@ static int crypt_read_key(void)
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_term);
         fprintf(stderr, "\n");
     }
+
+    /* Give Ctrl+C back to the shell. */
+    sigaction(SIGINT, &old_action, NULL);
     return len;
 }
 
@@ -215,6 +233,11 @@ int filecrypt_main(int argc, char *argv[])
         explicit_bzero(key_arg, key_len);
     } else {
         key_len = crypt_read_key();
+        if (crypt_stop_requested) {
+            printf("[Interrupted by Ctrl+C]\n");
+            crypt_cleanup(NULL, 0, NULL, 0);
+            return 130;
+        }
     }
     if (key_len <= 0) {
         printf("Error: no key given\n");
