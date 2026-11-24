@@ -358,11 +358,4 @@ int timedexec_main(int argc, char **argv)
     return code;
 }
 
-/* compiling with -DCUSTOM_SHELL removes this main() so timedexec_main
-   can be linked into another program without a duplicate main() */
-#ifndef CUSTOM_SHELL
-int main(int argc, char **argv)
-{
-    return timedexec_main(argc, argv);
-}
-#endif
+
