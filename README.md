@@ -4,8 +4,6 @@
 
 ## CSC 33200 - Operating Systems | Fall 2026
 
-The City College of New York
-
 ## Developed By
 
 - Nurul Huda (Group Leader)
